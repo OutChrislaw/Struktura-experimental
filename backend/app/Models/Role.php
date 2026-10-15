@@ -18,6 +18,14 @@ class Role extends Model
     protected $table = 'role';
 
     /**
+     * The `role` table has no created_at / updated_at columns (per the data
+     * dictionary), so Eloquent's automatic timestamps are disabled.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
      * The primary key for the model.
      *
      * @var string
