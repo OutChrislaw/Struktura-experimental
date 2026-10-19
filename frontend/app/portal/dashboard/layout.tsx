@@ -11,15 +11,17 @@ import {
   type SidebarGroup,
   type SidebarSection,
 } from "./sidebarData";
+import {
+  clearSession,
+  getStoredUser,
+  getToken,
+  logout as apiLogout,
+  me,
+  toSessionUser,
+  type SessionUser,
+} from "@/lib/api";
 
 type UserRole = "SA" | "PM" | "SS";
-
-type LoggedUser = {
-  user_id: string;
-  role: UserRole;
-  first_name: string;
-  last_name: string;
-};
 
 const roleLabels: Record<UserRole, string> = {
   SA: "System Administrator",
@@ -98,89 +100,56 @@ const rolePath: Record<UserRole, string> = {
   SS: "/portal/dashboard/ss",
 };
 
-const previewUsers: Record<UserRole, LoggedUser> = {
-  SA: {
-    user_id: "SA101",
-    first_name: "Juan",
-    last_name: "Dela Cruz",
-    role: "SA",
-  },
-  PM: {
-    user_id: "PM101",
-    first_name: "Maria",
-    last_name: "Santos",
-    role: "PM",
-  },
-  SS: {
-    user_id: "SS101",
-    first_name: "Pedro",
-    last_name: "Reyes",
-    role: "SS",
-  },
-};
-
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<LoggedUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      const previewRole = (Object.keys(rolePath) as UserRole[]).find(
-        (role) =>
-          pathname === rolePath[role] ||
-          pathname.startsWith(`${rolePath[role]}/`),
-      );
+    const token = getToken();
+    const storedUser = getStoredUser();
 
-      if (previewRole) {
-        const previewUser = previewUsers[previewRole];
-        localStorage.setItem(
-          "struktura_token",
-          `preview-token-${previewUser.user_id}`,
-        );
-        localStorage.setItem(
-          "struktura_user",
-          JSON.stringify(previewUser),
-        );
-        setUser(previewUser);
-        return;
-      }
-    }
-
-    const token = localStorage.getItem("struktura_token");
-    const storedUser = localStorage.getItem("struktura_user");
-
-    if (!token || !storedUser) {
+    if (!token || !storedUser || !(storedUser.role in rolePath)) {
+      clearSession();
       router.replace("/portal");
       return;
     }
 
-    try {
-      const parsedUser = JSON.parse(storedUser) as LoggedUser;
-      if (!(parsedUser.role in rolePath)) {
-        throw new Error("Invalid role");
-      }
+    const roleBase = rolePath[storedUser.role];
+    const isAccountRoute =
+      pathname === "/portal/dashboard/profile" ||
+      pathname === "/portal/dashboard/settings";
+    const isRoleRoute =
+      pathname === roleBase || pathname.startsWith(`${roleBase}/`);
 
-      const isAccountRoute =
-        pathname === "/portal/dashboard/profile" ||
-        pathname === "/portal/dashboard/settings";
-      const roleBase = rolePath[parsedUser.role];
-      const isRoleRoute =
-        pathname === roleBase || pathname.startsWith(`${roleBase}/`);
-
-      if (!isAccountRoute && !isRoleRoute) {
-        router.replace(rolePath[parsedUser.role]);
-        return;
-      }
-
-      setUser(parsedUser);
-    } catch {
-      localStorage.removeItem("struktura_token");
-      localStorage.removeItem("struktura_user");
-      router.replace("/portal");
+    if (!isAccountRoute && !isRoleRoute) {
+      router.replace(roleBase);
+      return;
     }
+
+    setUser(storedUser);
+
+    // Confirm the token is still valid with the backend; sign out if not.
+    let active = true;
+    me()
+      .then((fresh) => {
+        if (!active) return;
+        const sessionUser = toSessionUser(fresh);
+        if (sessionUser) {
+          setUser(sessionUser);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        clearSession();
+        router.replace("/portal");
+      });
+
+    return () => {
+      active = false;
+    };
   }, [pathname, router]);
 
   const sidebarData = useMemo(
@@ -226,9 +195,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("struktura_token");
-    localStorage.removeItem("struktura_user");
+  const handleLogout = async () => {
+    try {
+      await apiLogout();
+    } catch {
+      // Token may already be invalid; proceed to clear locally regardless.
+    }
+    clearSession();
     router.push("/portal");
   };
 

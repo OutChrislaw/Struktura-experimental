@@ -1,0 +1,22 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
+                "enableSsl": "Enabled",
+                "ssl": {
+                    "ca": "C:\\Users\\CHAN\\Downloads\\ca.pem"
+                }
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "mysql-101ad255-struktura-erp-im101.i.aivencloud.com",
+            "port": 21804,
+            "driver": "MySQL",
+            "database": "defaultdb",
+            "username": "avnadmin",
+            "name": "Aiven-Cloud-DB",
+            "askForPassword": true
+        }
+    ]
+}

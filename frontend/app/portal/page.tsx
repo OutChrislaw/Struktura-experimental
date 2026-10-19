@@ -5,59 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useRef, useState } from "react";
 import styles from "./page.module.css";
-
-type UserRole = "SA" | "PM" | "SS";
-
-type MockUser = {
-  user_id: string;
-  password: string;
-  first_name: string;
-  last_name: string;
-  role: UserRole;
-  role_name: string;
-  first_login: boolean;
-};
-
-const MOCK_USERS: MockUser[] = [
-  {
-    user_id: "SA101",
-    password: "admin123",
-    first_name: "Juan",
-    last_name: "Dela Cruz",
-    role: "SA",
-    role_name: "System Administrator",
-    first_login: false,
-  },
-  {
-    user_id: "PM101",
-    password: "pm123",
-    first_name: "Maria",
-    last_name: "Santos",
-    role: "PM",
-    role_name: "Project Manager",
-    first_login: false,
-  },
-  {
-    user_id: "SS101",
-    password: "ss123",
-    first_name: "Pedro",
-    last_name: "Reyes",
-    role: "SS",
-    role_name: "Site Supervisor",
-    first_login: false,
-  },
-];
-
-const DASHBOARD_PATHS: Record<UserRole, string> = {
-  SA: "/portal/dashboard/sa",
-  PM: "/portal/dashboard/pm",
-  SS: "/portal/dashboard/ss",
-};
+import {
+  ApiError,
+  ROLE_DASHBOARD_PATHS,
+  login,
+  saveSession,
+  toSessionUser,
+} from "@/lib/api";
 
 export default function PortalPage() {
   const router = useRouter();
-  const userIdRef = useRef<HTMLInputElement | null>(null);
-  const [userId, setUserId] = useState("");
+  const idNumberRef = useRef<HTMLInputElement | null>(null);
+  const [idNumber, setIdNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -67,53 +26,41 @@ export default function PortalPage() {
     event.preventDefault();
     setError("");
 
-    const trimmedUserId = userId.trim();
+    const trimmedIdNumber = idNumber.trim();
     const trimmedPassword = password.trim();
 
-    if (!trimmedUserId || !trimmedPassword) {
-      setError("Please enter both User ID and Password.");
-      userIdRef.current?.focus();
+    if (!trimmedIdNumber || !trimmedPassword) {
+      setError("Please enter both ID Number and Password.");
+      idNumberRef.current?.focus();
       return;
     }
 
     setLoading(true);
 
-    // Simulate network delay while the auth request is processed.
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const { token, user } = await login(trimmedIdNumber, trimmedPassword);
+      const sessionUser = toSessionUser(user);
 
-    // TODO: Replace this mock check with a real API login call.
-    const user = MOCK_USERS.find(
-      (mockUser) =>
-        mockUser.user_id.toUpperCase() === trimmedUserId.toUpperCase() &&
-        mockUser.password === trimmedPassword,
-    );
+      if (!sessionUser) {
+        setError(
+          "Your account role is not recognized. Contact your administrator.",
+        );
+        setLoading(false);
+        return;
+      }
 
-    if (!user) {
-      setError("Invalid User ID or Password. Please try again.");
+      saveSession(token, sessionUser);
+      router.push(ROLE_DASHBOARD_PATHS[sessionUser.role]);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Unable to sign in. Please try again.",
+      );
       setPassword("");
       setLoading(false);
-      userIdRef.current?.focus();
-      return;
+      idNumberRef.current?.focus();
     }
-
-    localStorage.setItem("struktura_token", "mock-token-" + Date.now());
-    localStorage.setItem(
-      "struktura_user",
-      JSON.stringify({
-        user_id: user.user_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        role: user.role,
-        role_name: user.role_name,
-      }),
-    );
-
-    const destination = user.first_login
-      ? "/portal/change-password"
-      : DASHBOARD_PATHS[user.role];
-
-    setLoading(false);
-    router.push(destination);
   };
 
   return (
@@ -163,18 +110,16 @@ export default function PortalPage() {
 
           <form className={styles.form} onSubmit={handleSubmit} noValidate>
             <div className={styles.fieldGroup}>
-              <label htmlFor="userId" className={styles.label}>
-                USER ID
+              <label htmlFor="idNumber" className={styles.label}>
+                ID NUMBER
               </label>
               <input
-                id="userId"
-                ref={userIdRef}
+                id="idNumber"
+                ref={idNumberRef}
                 type="text"
-                value={userId}
-                onChange={(event) =>
-                  setUserId(event.target.value.toUpperCase())
-                }
-                placeholder="e.g., SA101, PM101, SS101"
+                value={idNumber}
+                onChange={(event) => setIdNumber(event.target.value.toUpperCase())}
+                placeholder="e.g., SYS010001"
                 autoComplete="username"
                 autoFocus
                 required

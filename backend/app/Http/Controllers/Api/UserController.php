@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -46,7 +48,11 @@ class UserController extends Controller
     {
         $data = $request->validated();
 
+        $role = Role::findOrFail($data['role_id']);
+        $idNumber = $data['id_number'] ?? $this->nextIdNumber($role);
+
         $user = User::create([
+            'id_number' => $idNumber,
             'role_id' => $data['role_id'],
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
@@ -139,6 +145,7 @@ class UserController extends Controller
     {
         return [
             'user_id' => $user->user_id,
+            'id_number' => $user->id_number,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'full_name' => $user->full_name,
@@ -149,5 +156,31 @@ class UserController extends Controller
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
+    }
+
+    /**
+     * Build the next account ID for a role.
+     *
+     * Format: <prefix><role-code><4-digit serial>, e.g. SYS010001 / PM020001 / SUP030001.
+     */
+    private function nextIdNumber(Role $role): string
+    {
+        [$prefix, $roleCode] = match ($role->role_name) {
+            Role::ADMIN => ['SYS', '01'],
+            Role::PROJECT_MANAGER => ['PM', '02'],
+            Role::SITE_SUPERVISOR => ['SUP', '03'],
+            default => throw ValidationException::withMessages([
+                'role_id' => ['This role cannot be assigned an account ID.'],
+            ]),
+        };
+
+        $stem = $prefix.$roleCode;
+        $maxSerial = 0;
+
+        foreach (User::where('id_number', 'like', $stem.'%')->pluck('id_number') as $existingId) {
+            $maxSerial = max($maxSerial, (int) substr((string) $existingId, strlen($stem)));
+        }
+
+        return $stem.str_pad((string) ($maxSerial + 1), 4, '0', STR_PAD_LEFT);
     }
 }

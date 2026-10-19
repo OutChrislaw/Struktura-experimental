@@ -58,6 +58,7 @@ CREATE TABLE `role` (
 -- System accounts; also carries a direct role_id.
 CREATE TABLE `users` (
   `user_id`       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_number`     VARCHAR(20) NOT NULL COMMENT 'Login identifier: SYS01xxxx / PM02xxxx / SUP03xxxx',
   `role_id`       BIGINT UNSIGNED NOT NULL COMMENT 'FK -> role.role_id',
   `first_name`    VARCHAR(100) NOT NULL,
   `last_name`     VARCHAR(100) NOT NULL,
@@ -68,6 +69,7 @@ CREATE TABLE `users` (
   `updated_at`    TIMESTAMP    NULL DEFAULT NULL COMMENT 'Last modification timestamp',
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `uq_users_email` (`email`),
+  UNIQUE KEY `uq_users_id_number` (`id_number`),
   KEY `idx_users_role_id` (`role_id`),
   CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`)
     REFERENCES `role` (`role_id`) ON UPDATE CASCADE ON DELETE RESTRICT

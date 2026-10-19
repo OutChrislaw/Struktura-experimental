@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  listUsers,
+  roleCodeFromName,
+  type ApiUserRow,
+  type RoleCode,
+} from "@/lib/api";
 import styles from "./page.module.css";
 
 type UserInfo = {
@@ -14,8 +20,18 @@ type UserRow = {
   userId: string;
   fullName: string;
   role: "System Administrator" | "Project Manager" | "Site Supervisor";
+  roleCode: RoleCode;
   status: "Active" | "Inactive";
   lastLogin: string;
+};
+
+const ROLE_LABELS: Record<
+  RoleCode,
+  "System Administrator" | "Project Manager" | "Site Supervisor"
+> = {
+  SA: "System Administrator",
+  PM: "Project Manager",
+  SS: "Site Supervisor",
 };
 
 type AuditEntry = {
@@ -23,66 +39,7 @@ type AuditEntry = {
   message: string;
 };
 
-// Mock data for SA system management. Replace with fetch('/api/users') later.
-// This unrestricted view is exclusive to the System Administrator role.
-const users: UserRow[] = [
-  {
-    userId: "SA101",
-    fullName: "Alicia Mendoza",
-    role: "System Administrator",
-    status: "Active",
-    lastLogin: "2026-10-04 09:45",
-  },
-  {
-    userId: "PM101",
-    fullName: "Marcus Dela Cruz",
-    role: "Project Manager",
-    status: "Active",
-    lastLogin: "2026-10-04 08:20",
-  },
-  {
-    userId: "SS101",
-    fullName: "Rafael Santos",
-    role: "Site Supervisor",
-    status: "Active",
-    lastLogin: "2026-10-04 07:40",
-  },
-  {
-    userId: "PM102",
-    fullName: "Leah Ramos",
-    role: "Project Manager",
-    status: "Inactive",
-    lastLogin: "2026-09-30 13:15",
-  },
-  {
-    userId: "SS102",
-    fullName: "Bryan Santos",
-    role: "Site Supervisor",
-    status: "Active",
-    lastLogin: "2026-10-02 16:50",
-  },
-  {
-    userId: "SS103",
-    fullName: "Nina Santos",
-    role: "Site Supervisor",
-    status: "Active",
-    lastLogin: "2026-10-03 11:25",
-  },
-  {
-    userId: "SA102",
-    fullName: "Carlos Reyes",
-    role: "System Administrator",
-    status: "Active",
-    lastLogin: "2026-10-04 06:12",
-  },
-  {
-    userId: "PM103",
-    fullName: "Jessa Valdez",
-    role: "Project Manager",
-    status: "Active",
-    lastLogin: "2026-10-04 14:05",
-  },
-];
+// User rows are loaded from the backend (GET /api/v1/users) inside the component.
 
 const roleCards = [
   {
@@ -159,6 +116,11 @@ const systemActivity: AuditEntry[] = [
 
 export default function SystemAdminDashboard() {
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [userRows, setUserRows] = useState<UserRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | RoleCode>("all");
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState("");
 
   useEffect(() => {
     const storedUser = localStorage.getItem("struktura_user");
@@ -167,6 +129,56 @@ export default function SystemAdminDashboard() {
       setUser(JSON.parse(storedUser) as UserInfo);
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    listUsers()
+      .then((records: ApiUserRow[]) => {
+        if (!active) return;
+
+        setUserRows(
+          records.map((record): UserRow => {
+            const code = roleCodeFromName(record.role_name) ?? "SA";
+
+            return {
+              userId: record.id_number,
+              fullName: record.full_name,
+              role: ROLE_LABELS[code],
+              roleCode: code,
+              status: record.is_active ? "Active" : "Inactive",
+              // The schema has no login-timestamp column.
+              lastLogin: "-",
+            };
+          }),
+        );
+      })
+      .catch((error) => {
+        if (!active) return;
+        setUsersError(
+          error instanceof Error ? error.message : "Failed to load users.",
+        );
+      })
+      .finally(() => {
+        if (!active) return;
+        setUsersLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredRows = userRows.filter((row) => {
+    const term = search.trim().toLowerCase();
+    const matchesSearch =
+      !term ||
+      row.fullName.toLowerCase().includes(term) ||
+      row.userId.toLowerCase().includes(term);
+    const matchesRole = roleFilter === "all" || row.roleCode === roleFilter;
+
+    return matchesSearch && matchesRole;
+  });
 
   return (
     <div className={styles.page}>
@@ -269,8 +281,18 @@ export default function SystemAdminDashboard() {
           <div className={styles.panelHeader}>
             <span>User Management</span>
             <div className={styles.filterRow}>
-              <input type="text" placeholder="Search user" />
-              <select defaultValue="all">
+              <input
+                type="text"
+                placeholder="Search user"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                value={roleFilter}
+                onChange={(event) =>
+                  setRoleFilter(event.target.value as "all" | RoleCode)
+                }
+              >
                 <option value="all">All Roles</option>
                 <option value="SA">System Administrator</option>
                 <option value="PM">Project Manager</option>
@@ -291,39 +313,53 @@ export default function SystemAdminDashboard() {
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {users.map((entry) => (
-                  <tr key={entry.userId}>
-                    <td>{entry.userId}</td>
-                    <td>{entry.fullName}</td>
-                    <td>{entry.role}</td>
-                    <td className={styles.statusColumn}>
-                      <span
-                        className={
-                          entry.status === "Active"
-                            ? styles.statusActive
-                            : styles.statusInactive
-                        }
-                      >
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td>{entry.lastLogin}</td>
-                    <td>
-                      <div className={styles.actionCell}>
-                        <button type="button" className={styles.linkButton}>
-                          Edit
-                        </button>
-                        <button type="button" className={styles.linkButtonAlt}>
-                          Reset
-                        </button>
-                        <button type="button" className={styles.linkButton}>
-                          Disable
-                        </button>
-                      </div>
-                    </td>
+                            <tbody>
+                {usersLoading ? (
+                  <tr>
+                    <td colSpan={6}>Loading users...</td>
                   </tr>
-                ))}
+                ) : usersError ? (
+                  <tr>
+                    <td colSpan={6}>{usersError}</td>
+                  </tr>
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>No users found.</td>
+                  </tr>
+                ) : (
+                  filteredRows.map((entry) => (
+                    <tr key={entry.userId}>
+                      <td>{entry.userId}</td>
+                      <td>{entry.fullName}</td>
+                      <td>{entry.role}</td>
+                      <td className={styles.statusColumn}>
+                        <span
+                          className={
+                            entry.status === "Active"
+                              ? styles.statusActive
+                              : styles.statusInactive
+                          }
+                        >
+                          {entry.status}
+                        </span>
+                      </td>
+                      <td>{entry.lastLogin}</td>
+                      <td>
+                        <div className={styles.actionCell}>
+                          <button type="button" className={styles.linkButton}>
+                            Edit
+                          </button>
+                          <button type="button" className={styles.linkButtonAlt}>
+                            Reset
+                          </button>
+                          <button type="button" className={styles.linkButton}>
+                            Disable
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

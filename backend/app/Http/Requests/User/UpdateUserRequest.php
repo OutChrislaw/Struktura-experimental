@@ -23,6 +23,10 @@ class UpdateUserRequest extends FormRequest
         $userId = $this->route('user')->user_id;
 
         return [
+            'id_number' => [
+                'sometimes', 'string', 'max:20',
+                Rule::unique('users', 'id_number')->ignore($userId, 'user_id'),
+            ],
             'role_id' => ['sometimes', 'integer', Rule::exists('role', 'role_id')],
             'first_name' => ['sometimes', 'string', 'max:100'],
             'last_name' => ['sometimes', 'string', 'max:100'],

@@ -24,6 +24,7 @@ class AdminUserSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@struktura.test'],
             [
+                'id_number' => 'SYS010001',
                 'role_id' => $adminRoleId,
                 'first_name' => 'Dummy',
                 'last_name' => 'Admin',

@@ -20,6 +20,7 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'id_number' => ['sometimes', 'string', 'max:20', 'unique:users,id_number'],
             'role_id' => ['required', 'integer', Rule::exists('role', 'role_id')],
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],

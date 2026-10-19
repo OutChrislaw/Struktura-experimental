@@ -20,18 +20,18 @@ class AuthController extends Controller
         $credentials = $request->validated();
 
         /** @var User|null $user */
-        $user = User::with('role')->where('email', $credentials['email'])->first();
+        $user = User::with('role')->where('id_number', $credentials['id_number'])->first();
 
         // Use a single, generic error to avoid leaking which field was wrong.
         if (! $user || ! Hash::check($credentials['password'], $user->password_hash)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'id_number' => ['The provided credentials are incorrect.'],
             ]);
         }
 
         if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'email' => ['This account has been deactivated.'],
+                'id_number' => ['This account has been deactivated.'],
             ]);
         }
 
@@ -75,6 +75,7 @@ class AuthController extends Controller
     {
         return [
             'user_id' => $user->user_id,
+            'id_number' => $user->id_number,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'full_name' => $user->full_name,
