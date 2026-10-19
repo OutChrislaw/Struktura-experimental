@@ -215,3 +215,42 @@ export async function listUsers(): Promise<ApiUserRow[]> {
 export async function logout(): Promise<void> {
   await request<{ message: string }>("/logout", { method: "POST" });
 }
+
+// --- admin console types ----------------------------------------------------
+
+export type ApiSkill = { skill_id: number; skill_name: string; description: string | null; laborer_count?: number };
+export type ApiProject = { project_id: number; project_name: string; client_name: string | null; location: string | null; start_date: string | null; end_date: string | null; approved_budget: string | number; remaining_budget: string | number; deadline: string | null; status: string | null; manager_id: string | null; manager_first_name: string | null; manager_last_name: string | null; phase_count: number };
+export type ApiPhase = { phase_id: number; project_id: number; project: string; project_name: string | null; description: string | null; sequence_no: number | null; project_cost: string | number | null; planned_start: string | null; planned_end: string | null; status: string | null };
+export type ApiAssignment = { assignment_id: number; first_name: string; last_name: string; project: string; phase: string; role_on_task: string | null; status: string | null; assigned_at: string | null; released_at: string | null; hourly_rate_ovveride: string | number | null };
+export type ApiEquipment = { equipment_id: number; equipment_name: string; equipment_type: string | null; hourly_rental_rate: string | number | null; equipment_status: string | null };
+export type ApiMaterial = { material_id: number; material_name: string; unit_of_measure: string | null; unit_cost: string | number | null };
+export type ApiSupplier = { supplier_id: number; supplier_name: string; contact_name: string | null; contact_num: string | null; city: string | null; state_province: string | null; country: string | null };
+export type ApiAuditEvent = { audit_log_id: number; project_id: number; project_name: string | null; table_name: string; record_id: number; action_type: string; old_value: unknown; new_value: unknown; charge_at: string | null; id_number: string | null; first_name: string | null; last_name: string | null };
+export type ApiLoginToken = { id: number; token_name: string; id_number: string | null; first_name: string | null; last_name: string | null; last_used_at: string | null; created_at: string | null };
+export type ApiDbTable = { name: string; approx_rows?: number; data_kb?: number; index_kb?: number };
+export type ApiDatabaseTable = { table: string; rows: number };
+export type ApiSystemInfo = { app_name: string; environment: string; laravel_version: string; php_version: string; database_driver: string; database_server: string; database_name: string; database_host: string; timezone: string; debug_mode: boolean; cache_driver: string; session_driver: string; queue_driver: string };
+export type ApiRoleItem = { role_id: number; role_name: string; description: string | null };
+export type ApiDashboardData = { metrics: { total_users: number; active_users: number; skills: number; projects: number; audit_events_today: number; active_sessions: number }; roles: Record<string, number>; activity: { day: string; total: number }[]; recent: { id: number; table_name: string; record_id: number; action_type: string; charge_at: string | null; project_name: string | null; id_number: string | null; first_name: string | null; last_name: string | null }[] };
+export type ApiSearchResults = { users: { user_id: number; id_number: string; first_name: string; last_name: string; email: string; is_active: boolean }[]; skills: ApiSkill[]; projects: { project_id: number; project_name: string; client_name: string | null; location: string | null; status: string | null }[] };
+
+// --- admin console endpoints --------------------------------------------------
+
+export const listSkills = async () => (await request<{ data: ApiSkill[] }>("/skills")).data;
+export const createSkill = (body: { skill_name: string; description?: string | null }) => request<{ message: string; data: ApiSkill }>("/skills", { method: "POST", body });
+export const updateSkill = (id: number, body: { skill_name: string; description?: string | null }) => request<{ message: string; data: ApiSkill }>(`/skills/${id}`, { method: "PUT", body });
+export const deleteSkill = (id: number) => request<{ message: string }>(`/skills/${id}`, { method: "DELETE" });
+export const listRoles = async () => (await request<{ data: ApiRoleItem[] }>("/roles")).data;
+export const setUserActive = (id: number, active: boolean) => request<{ message: string }>(`/users/${id}/${active ? "activate" : "deactivate"}`, { method: "PATCH" });
+export const createUser = (body: Record<string, unknown>) => request<{ message: string; data: ApiUserRow }>("/users", { method: "POST", body });
+export const getAdminDashboard = () => request<ApiDashboardData>("/admin/dashboard");
+export const getAdminProjects = async () => (await request<{ data: ApiProject[] }>("/admin/projects")).data;
+export const getAdminPhases = async () => (await request<{ data: ApiPhase[] }>("/admin/phases")).data;
+export const getAdminAssignments = async () => (await request<{ data: ApiAssignment[] }>("/admin/assignments")).data;
+export const getAdminResources = () => request<{ equipment: ApiEquipment[]; materials: ApiMaterial[]; suppliers: ApiSupplier[] }>("/admin/resources");
+export const getAuditEvents = async () => (await request<{ data: ApiAuditEvent[] }>("/admin/audit/events")).data;
+export const getAuditLogins = async () => (await request<{ data: ApiLoginToken[] }>("/admin/audit/logins")).data;
+export const getAuditDb = () => request<{ data: ApiDbTable[]; server_version: string | null }>("/admin/audit/db");
+export const getDatabaseTables = async () => (await request<{ data: ApiDatabaseTable[] }>("/admin/database")).data;
+export const getSystemInfo = async () => (await request<{ data: ApiSystemInfo }>("/admin/system")).data;
+export const searchAll = (q: string) => request<ApiSearchResults>(`/admin/search?q=${encodeURIComponent(q)}`);
